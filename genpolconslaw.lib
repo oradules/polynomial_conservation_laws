@@ -1,0 +1,161 @@
+//////////////////////////////////////////////////////////////////////////////
+version=" December 2022 "; //
+info="
+LIBRARY:  genpolconslaw.lib
+
+AUTHORS; Christoph L\"uders, University of Kassel, Kassel, Germany
+Hamid Rahkooy, MPI Informatics, Saarbruecken, Germany
+
+OVERVIEW:
+
+Computes conservation laws ONLY in the generic branch of CGS, by working on R(k(1..r))[x(1..n)].
+
+NOTATIONS: Before calling any routine of the library,
+          the user  must define the ideal QQ[k(1..m)][x(1..n)], and all the
+          input polynomials and  ideals defined on it.
+
+PROCEDURES:
+
+";
+//LIB "polylib.lib";
+LIB "curlnz.lib";
+
+
+// ************ Begin of the polconslaw library *********************
+
+// Algorithm ParametricPolynomialConservationLawsViaSyzygies
+// Input:
+   //r : ring with parameters and variables
+   //J: steady state ideal in ring r
+// ring and variables should be defined before running the library
+//Ex. ring r=(0,k(1..5)),(x(1..5)),dp;
+// poly f=3*k(1)*x(1);
+// poly g=k(1)*x(1)+x(2);
+// ideal J=f,g;
+
+proc genpolconslaw(r, J) {
+    option (noredefine);
+
+    //print("");
+    //print("Steady State Ideal:");
+    //J;
+
+    // build list of ring parameters and positivity condition
+    list p;
+    //p = ringlist(r)[1][2];
+    int numpar = size(ringlist(r)[1][2]);
+    for (int i=1; i<=numpar; i++) {
+    	p = insert(p,par(i));
+	}
+    //p = k(1..numpar);
+    //print("parameters list"), p;
+    
+    // build list of ring variables
+    list v;
+    int numvar = size(ringlist(r)[2]);
+    for (int i=1; i<=numvar; i++) {
+    	v[i] = var(i);
+	}
+    //print("variable list"), v;
+
+    //list ConsLaws;
+    list ConsLaws;
+    int s;
+    int s1;
+       
+    module S = syz(J);
+    print("Syzigies"),S;
+    s = s + size(S);
+
+    int deg1 = 0;
+    int degn1 = 0;
+
+    for (int j=1; j<=size(S); j++) {
+	    // only if curl is zero
+        list g = S[j];
+        for (int k = 1; k <= size(g); k++) {
+            g[k] = vector_to_poly(g[k]);
+        }
+        int curl = curlnz(g, v);
+        //int curl = curlnz(S[j], v);
+        print("curl="), curl;
+        if (curl == 0) {
+	        poly Phi =0;
+	        for (int k=1; k<=nrows(S[j]); k++) {
+                // make x(k+1)=0, x(k+2)=0, ...
+    	        poly gk = S[j][k];
+	            //print("S[j][k]: k-th pol of j-th syzygy:"),gk;
+	            //poly Phi = 0;
+                for (int l=k+1; l<=nrows(S[j]); l++) {
+	       	        //Compute g[k](x_k+1=x_k+2...=0)
+	       	        //print("var(l):"), var(l);
+		            //print("gk/var(l)"),gk/var(l);
+		            gk = gk - (gk/var(l)) * var(l);
+                }
+		        //print("gk(x_k+1=x_k+2...=0) before integration:"), gk;
+	            // Integration
+	            //print("gk before integration"), gk;
+                // go through all monomials by gk[l]
+                for (int t=1; t<=size(gk); t++) {
+              	    // integrate t-th monomial
+		            //print("Phi before additoin of integration "), Phi;
+                    Phi = Phi + gk[t] * x(k) / (leadexp(gk[t])[k] + 1);
+		            // print("gk after each integration = Phi"), Phi;
+                }
+            }
+
+            // save for later creation of list of Cons Laws
+	        if (Phi != 0) {
+	            for (int m=1; m<=size(ConsLaws); m++) {
+                    if (ConsLaws[m] == Phi) {
+                        break;
+                    }
+                }
+                if (m > size(ConsLaws)) {
+                    ConsLaws = insert(ConsLaws, Phi);
+                    print("cons laws"), ConsLaws;
+                    s1 = s1 + 1;
+                    
+                    if (deg(Phi) == 1) {
+                        deg1 = deg1 + 1;
+                    }
+                    else {
+                        degn1 = degn1 + 1;
+                    }
+                }
+            }
+        }
+    }
+
+    print("Syzygy Module Size ="), s;
+    print("Number of Conservation Laws in Generic Branch ="), s1;
+    print("Number of linear conservation laws ="), deg1;
+    print("Number of non-linear conservation laws ="), degn1;
+    print("Conservation Laws in Generic Branch:");
+    //ConsLaws;
+    //return(ConsLaws);
+};
+
+
+proc list_to_matrix(l) {
+    // convert list to matrix
+    matrix m[1][size(l)];
+    for (int j=1; j<=size(l); j++) {
+        m[1,j] = l[j];
+    }
+    return (m);
+};
+
+
+proc vector_to_poly(v) {
+    // convert vector to poly
+    poly p = 0;
+    for (int i = 1; i <= nrows(v); i++) {
+        p = p + poly(v[i]);
+    }
+    return (p);
+};
+
+
+
+//***********End of polconslas library***************************

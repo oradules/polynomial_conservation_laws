@@ -1,0 +1,163 @@
+//////////////////////////////////////////////////////////////////////////////
+version=" December 2022 "; //
+info="
+LIBRARY:  polconslaw.lib
+
+AUTHORs; Hamid Rahkooy, MPI Informatics, Saarbruecken, Germany
+Christoph L\"uders, University of Kassel, Kassel, Germany
+
+OVERVIEW:
+
+NOTATIONS: Before calling any routine of the library,
+          the user  must define the ideal QQ[k(1..m)][x(1..n)], and all the
+          input polynomials and  ideals defined on it.
+
+PROCEDURES:
+
+";
+//LIB "polylib.lib";
+LIB "grobcov.lib";
+LIB "curlnz.lib";
+
+
+// ************ Begin of the polconslaw library *********************
+
+// Algorithm PolConsLaws
+// Input:
+   //r : ring with parameters and variables
+   //J: steady state ideal in ring r
+// ring and variables should be defined before running the library
+//Ex. ring r=(0,k(1..5)),(x(1..5)),dp;
+// poly f=3*k(1)*x(1);
+// poly g=k(1)*x(1)+x(2);
+// ideal J=f,g;
+
+proc polconslaw(r, J) {
+    option (noredefine);
+
+    print("Steady State Ideal:"),J;
+
+    // build list of ring parameters and positivity condition
+    list p;
+    for (int t =1 ; t <= size(ringlist(r)[1][2]); t++) {
+        p[t] = par(t);
+    }
+    //print("Parameters:");
+    //print(p);
+
+
+    //print("Comprehensive Groebner System:");
+    list C = cgsdr(J);
+    print("Number of branches ="), size(C);
+    //print(C);
+
+    int num_nzcl = 0;
+    list ConsLaws;
+    list ParPolConsLaws;
+    for (int i=1; i<=size(C); i++) {
+        //print("Groebner basis:"),C[i][3];
+        ideal I = list_to_matrix(C[i][3]);
+	//print("CGB"),I;
+        
+        module S = syz(I);
+        //print("Syzygy Module of G_i:"),S;
+
+	//Find a matrix B converting ideals: J=I*B
+	//matrix B=lift(I,J);
+	//Convert syzygy of G_i=C[i][3] into syzygy of F
+        //module SF = S*B;
+        //print("Syzygy Module of F_i:");
+        //SF;
+
+        for (int j=1; j<=size(S); j++) {            
+            list g = S[j];
+	    //If syzygy of F is needed instead of syzygy of G_i use below
+            //list g = SF[j];
+            for (int k = 1; k <= size(g); k++) {
+                g[k] = vector_to_poly(g[k]);
+            }
+
+            // build list of ring variables
+            list v;
+            for (int k = 1; k <= size(ringlist(r)[2]); k++) {
+                v[k] = var(k);
+            }
+
+            // only if curl is zero
+            int curl = curlnz(g, v);
+            //print("curl:");
+            //curl;
+            if (curl == 0) {
+                for (int k=1; k<=size(g); k++) {
+                    // zero out all x(k+1)...
+                    //g[k];
+                    for (int l=k+1; l<=size(g); l++) {
+                        g[k] = g[k] - (g[k]/x(t)) * x(t);
+                    }
+                    //g[k];
+
+                    // Integration
+                    poly gk = g[k];
+                    poly Phi = 0;
+                    // go through all monomials by gk[l]
+                    for (int l=1; l<=size(gk); l++) {
+                        // integrate l-th monomial 
+                        Phi = Phi + gk[l] * x(k) / (leadexp(gk[l])[k] + 1);  
+                        //Phi;
+                    }
+
+                    // save for later creation of list of Cons Laws
+                    ConsLaws = insert(ConsLaws,Phi); 
+                }
+            }
+        }
+        //Creating List of Cons Laws, w the corresp. branch of CGS and parameters, if there exist any Cons Law
+        if (size(ConsLaws) != 0) {
+            ParPolConsLaws[i] = insert(ParPolConsLaws, (C[i][1], C[i][2], p, ConsLaws));
+            //print(ParPolConsLaws[i]);
+            num_nzcl = num_nzcl + 1;
+
+            int deg1 = 0;
+            int degn1 = 0;
+            for (int j=1; j<=size(ConsLaws); j++) {
+                if (deg(ConsLaws[j]) == 1) {
+                    deg1 = deg1 + 1;
+                }
+                else {
+                    degn1 = degn1 + 1;
+                }
+            }
+
+            "Branch #", i, "has", size(ConsLaws), "non-zero conservation laws;", deg1, "linear,", degn1, "non-linear";
+        }
+    }
+    print("Number of branches with non-zero conservation laws ="), num_nzcl;
+    //print("Conservation Laws:");
+    //ConsLaws;
+    //return(ConsLaws);
+    ///return(ParPolConsLaws);  // removed to time procedure
+};
+
+
+proc list_to_matrix(l) {
+    // convert list to matrix
+    matrix m[1][size(l)];
+    for (int j=1; j<=size(l); j++) {
+        m[1,j] = l[j];
+    }
+    return (m);
+};
+
+
+proc vector_to_poly(v) {
+    // convert vector to poly
+    poly p = 0;
+    for (int i = 1; i <= size(v); i++) {
+        p = p + poly(v[i]);
+    }
+    return (p);
+};
+
+
+
+//***********End of polconslas library***************************

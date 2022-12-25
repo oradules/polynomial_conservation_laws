@@ -1,0 +1,199 @@
+//////////////////////////////////////////////////////////////////////////////
+version=" December 2022 "; //
+info="
+LIBRARY:  curlnz.lib
+
+AUTHORS; Christoph L\"uders, University of Kassel, Kassel, Germany
+Hamid Rahkooy, MPI Informatics, Saarbruecken, Germany
+
+OVERVIEW:
+
+Tests if a given syzygy is conservative or not, by checking if its curl is zero or not. 
+
+NOTATIONS: Before calling any routine of the library,
+          the user  must define the ideal QQ[k(1..m)][x(1..n)], and all the
+          input polynomials and  ideals defined on it.
+
+";
+
+// ************ Begin of the polconslaw library *********************
+
+// Algorithm ParametricPolynomialConservationLawsViaSyzygies
+// Input:
+   //p : list of polynomials
+   //v: list of variables of the underlying ring 
+
+proc curlnz(list p, list v) {
+    int i;
+    for (i=size(p) + 1; i <= size(v); i++) {
+        p[i] = 0;
+    }
+
+    if (size(p) != size(v)) {
+        print("Sizes of p and v must match!");
+        print(size(p));
+        print(size(v));
+    }
+
+    int j;
+    poly d;
+    for (i=1; i<=size(p); i++) {
+        for (j=i+1; j<=size(p); j++) {
+            //print((i,j));
+            //type(p[i]);
+            //type(v[i]);
+            d = diff(p[i], v[j]) - diff(p[j], v[i]);
+            //print(p[i]);
+            //print(v[j]);
+            //print(p[j]);
+            //print(v[i]);
+            //print(d);
+            if (d != 0) {
+                return (1);
+            }
+        }
+    }
+
+    return (0);
+};
+
+proc curlnz_test1() {
+    ring r=0, (x,y,z), dp;
+    list p = xy, xx, zy;
+    list v =  x,  y,  z;
+    int ret = curlnz(p, v);
+    //print(ret);
+    return (ret);
+}
+
+proc curlnz_test2() {
+    ring r=0, (x,y,z), dp;
+    list p = zz, xx, yy;
+    list v =  x,  y,  z;
+    int ret = curlnz(p, v);
+    //print(ret);
+    return (ret);
+}
+
+proc curlnz_test3() {
+    ring r=0, (x,y), dp;
+    list p = xxy, 1/3*xxx;
+    list v =   x,       y;
+    int ret = curlnz(p, v);
+    //print(ret);
+    return (ret);
+}
+
+proc curlnz_test4() {
+    ring r=0, (x,y,z), dp;
+    list p = xxy, 1/3*xxx, x;
+    list v =   x,       y, z;
+    int ret = curlnz(p, v);
+    //print(ret);
+    return (ret);
+}
+
+proc curlnz_test5() {
+    ring r=0, (x,y,z,u), dp;
+    list p = xxyu, 1/3*xxxu, z, 1/3*xxxy;
+    list v =    x,        y, z, u;
+    int ret = curlnz(p, v);
+    //print(ret);
+    return (ret);
+}
+
+proc curlnz_test6() {
+    ring r=(0,k(1)),(x(1),x(2),x(3)),dp;
+    list p = x(1),-x(2),0;
+    list v = x(1),x(2),x(3);
+    int ret = curlnz(p, v);
+    //print(ret);
+    return (ret);
+}
+
+//test6 vector written via gen representation
+proc curlnz_test7() {
+    ring r=(0,k(1)),(x(1),x(2),x(3)),dp;
+    list p = x(1),-x(2);
+    list v = x(1),x(2),x(3);
+    int ret = curlnz(p, v);
+    //print(ret);
+    return (ret);
+}
+
+//When size(p)<size(v) and no zero is added to p
+proc curlnz_test8() {
+    ring r=(0,k(1)),(x(1),x(2),x(3)),dp;
+    list p = x(1),-x(2);
+    list v = x(1),x(2),x(3);
+    int ret = curlnz(p, v);
+    //print(ret);
+    return (ret);
+}
+
+//When size(p)<size(v) and no zero is added to p
+proc curlnz_test9() {
+    ring r=(0,k(1)),(x(1),x(2),x(3),x(4),x(5)),dp;
+    list p = x(2),-x(1);
+    list v = x(1),x(2),x(3),x(4),x(5);
+    int ret = curlnz(p, v);
+    //print(ret);
+    return (ret);
+}
+
+//When size(p)<size(v) and no zero is added to p
+proc curlnz_test10() {
+    ring r=(0,k(1)),(x(1),x(2),x(3),x(4),x(5)),dp;
+    list p = x(3),0,-x(1);
+    list v = x(1),x(2),x(3),x(4),x(5);
+    int ret = curlnz(p, v);
+    //print(ret);
+    return (ret);
+}
+
+//When size(p)<size(v) and no zero is added to p
+proc curlnz_test11() {
+    ring r=(0,k(1)),(x(1),x(2),x(3),x(4),x(5)),dp;
+    list p = x(2),0,-x(1);
+    list v = x(1),x(2),x(3),x(4),x(5);
+    int ret = curlnz(p, v);
+    //print(ret);
+    return (ret);
+}
+
+proc test_curlnz() {
+    if (curlnz_test1() != 1) {
+        print("test1 failed!");
+    }
+    if (curlnz_test2() != 1) {
+        print("test2 failed!");
+    }
+    if (curlnz_test3() != 0) {
+        print("test3 failed!");
+    }
+    if (curlnz_test4() != 1) {
+        print("test4 failed!");
+    }
+    if (curlnz_test5() != 0) {
+        print("test5 failed!");
+    }
+    if (curlnz_test6() != 0) {
+        print("test6 failed!");
+    }
+    if (curlnz_test7() != 0) {
+        print("test7 failed!");
+    }
+    if (curlnz_test8() != 0) {
+        print("test8 failed!");
+    }
+    if (curlnz_test9() != 1) {
+        print("test9 failed!");
+    }
+    if (curlnz_test10() != 1) {
+        print("test10 failed!");
+    }
+    if (curlnz_test11() != 1) {
+        print("test11 failed!");
+    }
+    return (1);
+}
