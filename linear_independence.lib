@@ -1,0 +1,126 @@
+proc linear_independence(list S, list v) {
+    //1-Form the system:
+    //Sys=C[1]*GenSyz[1] + ... + C[M]*Gensyz[M]
+    //2-SOLVE Sys FOR C1,...Cm.:
+    //3-Form the linear combination C[1]*basis_nz_curl[1] + ... + C[t]*basis_nz_curl[t]
+
+    int i;
+    int j;
+
+    // compute curls and save the non-zero ones
+    list nz_curls;
+    list basis_nz_curl;
+    list basis_zero_curl;
+    vector c;
+    for (i=1; i<=size(basis_syz); i++) {
+        c = curl(basis_syz[i]);
+        if (c != 0) {
+            nz_curls = insert(nz_curls, c, size(nz_curls));
+            basis_nz_curl = insert(basis_nz_curl, basis_syz[i], size(basis_nz_curl));
+        }
+        else {
+            basis_zero_curl = insert(basis_zero_curl, basis_syz[i], size(basis_zero_curl));
+        }
+    }
+
+    // if all curls are zero, have an early exit
+    int numcs = size(basis_nz_curl);
+    //"number of non-zero curls:", numcs;
+    if (numcs == 0) {
+        // "all curls are zero";
+        list ret = (list(), basis_syz);
+        return (ret);
+    }
+
+    // add c(i) as variables to the ring
+    ring save_ring = basering;
+    def rl = ringlist(basering);
+
+    for (i=1; i<=numcs; i++) {
+        rl[2][size(rl[2])+1] = "c(" + string(i) + ")";
+    }
+    def @r = ring(rl);
+    int numvars = size(v);
+    setring @r;
+
+    // access data from old ring
+    def save_basis_nz_curl = imap(save_ring, basis_nz_curl);
+    def save_nz_curls = imap(save_ring, nz_curls);
+
+    // linear combination of curls of syzygy basis elements
+    vector sm;
+    for (i=1; i<=size(save_basis_nz_curl); i++) {
+        //save_basis_nz_curl[i];
+        //"curl:", save_nz_curls[i];
+        sm = sm + c(i)*save_nz_curls[i];
+    }
+    //"Linear combination of non-zero curls with indeterminate coeffs:", sm;
+
+    //OPTION 2 FOR SOLVING:
+    //LIB "presolve.lib";
+    //B is the matrix including equations in c(i)
+    //solvelinearpart(ideal(B));
+    //We have to change this output...
+
+    // build product of all monomials
+    poly prod = 1;
+    for (i=1; i<=numvars; i++) {
+        prod = prod * x(i);
+    }
+
+    list eqns;
+    matrix cfs;
+    poly entry;
+    for (i=1; i<=nrows(sm); i++) {
+        entry = sm[i];
+        // "entry=", entry;
+        cfs = coef(entry, prod);
+        for (j=1; j<=ncols(cfs); j++) {
+            eqns = insert(eqns, cfs[2,j], size(eqns));
+            //"eqn=", cfs[2,j];
+        }
+    }
+
+    // build a matrix m with coeffs in c as columns
+    matrix coeff_matrix[size(eqns)][numcs];
+    for (i=1; i<=size(eqns); i++) {
+        for (j=1; j<=numcs; j++) {
+            cfs = coef(eqns[i], c(j));
+            if (cfs[1,1] == c(j)) {
+                coeff_matrix[i,j] = cfs[2,1];
+            }
+        }
+    }
+
+    //coeff_matrix;
+    def solv = mysolve(coeff_matrix);
+    if (solv[1] == 0) {
+        // early exit
+        setring save_ring;
+        list ret = (list(), basis_zero_curl);
+        return (ret);
+    }
+
+    // there were solution(s)
+    def kernel_matrix = solv[2];
+    //kernel_matrix;
+
+    list linear_combi_list;
+    for (i=1; i<=ncols(kernel_matrix); i++) {
+        sm = 0;
+        for (j=1; j<=nrows(kernel_matrix); j++) {
+            sm = sm + kernel_matrix[j,i]*save_basis_nz_curl[j];
+        }
+
+        // divide out gcd
+        sm = sm / content(sm);
+
+        "linear combination of non-zero curls:", sm;
+        linear_combi_list = insert(linear_combi_list, sm, size(linear_combi_list));
+    }
+
+    setring save_ring;
+    def old_linear_combi_list = imap(@r, linear_combi_list);
+    list ret = (old_linear_combi_list, basis_zero_curl);
+    return (ret);
+}

@@ -1,12 +1,14 @@
 //////////////////////////////////////////////////////////////////////////////
-version=" December 2022 "; //
+version=" June 2023 "; //
 info="
 LIBRARY:  polconslaw.lib
 
-AUTHORs; Hamid Rahkooy, MPI Informatics, Saarbruecken, Germany
-Christoph L\"uders, University of Kassel, Kassel, Germany
+AUTHORS; Christoph L\"uders, University of Kassel, Kassel, Germany
+Hamid Rahkooy, University of Oxford, UK.
 
 OVERVIEW:
+Computes polynomial conservation laws for each branch of CGS.
+
 
 NOTATIONS: Before calling any routine of the library,
           the user  must define the ideal QQ[k(1..m)][x(1..n)], and all the
@@ -15,127 +17,100 @@ NOTATIONS: Before calling any routine of the library,
 PROCEDURES:
 
 ";
-//LIB "polylib.lib";
+
 LIB "grobcov.lib";
-LIB "curlnz.lib";
+LIB "curl.lib";
+LIB "syzygy_basis.lib";
+LIB "integration.lib";
+LIB "genpolconslaw.lib";
+LIB "specialisation.lib";
 
 
 // ************ Begin of the polconslaw library *********************
 
-// Algorithm PolConsLaws
+// Algorithm ParametricPolynomialConservationLawsViaSyzygies
 // Input:
-   //r : ring with parameters and variables
-   //J: steady state ideal in ring r
-// ring and variables should be defined before running the library
-//Ex. ring r=(0,k(1..5)),(x(1..5)),dp;
+   // J: steady state ideal in ring r
+   // deg_bound: degree bound
+// Ring and variables must be defined before running the library
+// Ex. ring r=(0,k(1..5)),(x(1..5)),dp;
 // poly f=3*k(1)*x(1);
 // poly g=k(1)*x(1)+x(2);
 // ideal J=f,g;
 
-proc polconslaw(r, J) {
+proc polconslaw(ideal J, int deg_bound) {
     option (noredefine);
 
-    print("Steady State Ideal:"),J;
+    print("Steady State Ideal:"); J;
 
-    // build list of ring parameters and positivity condition
-    list p;
-    for (int t =1 ; t <= size(ringlist(r)[1][2]); t++) {
-        p[t] = par(t);
+    // build list of ring variables
+    list v;
+    int numvar = size(ringlist(basering)[2]);
+    for (int i=1; i<=numvar; i++) {
+        v[i] = var(i);
     }
-    //print("Parameters:");
-    //print(p);
+    //print("variable list"), v;
 
+    "Degree bound set to", deg_bound;
 
-    //print("Comprehensive Groebner System:");
+    //Computing Comprehensive Groebner System
     list C = cgsdr(J);
     print("Number of branches ="), size(C);
-    //print(C);
+    //print("Comprehensive Groebner System:"), C;
 
-    int num_nzcl = 0;
-    list ConsLaws;
+    int num_branches_nzconslaw = 0;
     list ParPolConsLaws;
+
     for (int i=1; i<=size(C); i++) {
-        //print("Groebner basis:"),C[i][3];
-        ideal I = list_to_matrix(C[i][3]);
-	//print("CGB"),I;
-        
+        // TAKE SEMIALGEBRAIC SETS C[i][1] (which should be a set of parameters) and 
+        // evaluate f(p=0) for each f in the input ideal J and p in the semialgebraic set. 
+        // This should give a new ideal and we compute syz for this ideal.
+        list F = specialise_ideal(J, C[i][1]);
+        ideal I = list_to_matrix(F);
+
+        //OPTION 2: Take GB in the GBS, compute its Syz and convert to syz of F:
+        //print("Groebner basis of branches:"), C[i][3];
+        //ideal I = list_to_matrix(C[i][3]);
+
         module S = syz(I);
-        //print("Syzygy Module of G_i:"),S;
+        //print("Syzygy Module of Branch i:"), S;
 
-	//Find a matrix B converting ideals: J=I*B
-	//matrix B=lift(I,J);
-	//Convert syzygy of G_i=C[i][3] into syzygy of F
-        //module SF = S*B;
-        //print("Syzygy Module of F_i:");
-        //SF;
+        //Convert syzygy of G_i=C[i][3] into syzygy of original system F: J=I*B
+        //matrix B=lift(I,J);
+        //module S = S*B;
+        //MUST COMPUTE KERNERL OF THE CONVERSION MATRIX B AND ADD IT TO S (EXAMPLE 6.11):    //S = insert(S,kernel(B));
+        //print("Syzygy Module of F_i:"), S;
 
-        for (int j=1; j<=size(S); j++) {            
-            list g = S[j];
-	    //If syzygy of F is needed instead of syzygy of G_i use below
-            //list g = SF[j];
-            for (int k = 1; k <= size(g); k++) {
-                g[k] = vector_to_poly(g[k]);
-            }
+        // Computing a generating set for the Q-vector space of Syzygies as in Remark 6.9
+        list GenS = multiply_by_monomials(S, v, deg_bound);
+	// "VS Gens"; GenS;
 
-            // build list of ring variables
-            list v;
-            for (int k = 1; k <= size(ringlist(r)[2]); k++) {
-                v[k] = var(k);
-            }
+        // Computing a basis for the Q-vector space of Syzygies as in Remark 6.9
+        list basis_syz = basis_syzygy(GenS[1]);
+	// print("Syz VS basis:"); basis_syz;
 
-            // only if curl is zero
-            int curl = curlnz(g, v);
-            //print("curl:");
-            //curl;
-            if (curl == 0) {
-                for (int k=1; k<=size(g); k++) {
-                    // zero out all x(k+1)...
-                    //g[k];
-                    for (int l=k+1; l<=size(g); l++) {
-                        g[k] = g[k] - (g[k]/x(t)) * x(t);
-                    }
-                    //g[k];
+        // Computing curl of the elements of basis_syz is not enough because linear combination of curl non-zero elments may be zero. So one must check the linear combination of curl non-zero elements as well. This corresponds to computing kernelf oa curl as a linear map (see Prop. 6.22). Tihs is done via ansatz:
+        list lincomb = find_linear_combinations(basis_syz, v);
 
-                    // Integration
-                    poly gk = g[k];
-                    poly Phi = 0;
-                    // go through all monomials by gk[l]
-                    for (int l=1; l<=size(gk); l++) {
-                        // integrate l-th monomial 
-                        Phi = Phi + gk[l] * x(k) / (leadexp(gk[l])[k] + 1);  
-                        //Phi;
-                    }
+        list curl_zero_syz = lincomb[1] + lincomb[2];
 
-                    // save for later creation of list of Cons Laws
-                    ConsLaws = insert(ConsLaws,Phi); 
-                }
-            }
-        }
-        //Creating List of Cons Laws, w the corresp. branch of CGS and parameters, if there exist any Cons Law
+        list ret = compute_conslaw_nzcurl(I, curl_zero_syz, v);
+        list ConsLaws = ret[1];
+        int deg1 = ret[2];
+        int degn1 = ret[3];
+
+        // Creating List of Cons Laws, w the corresp. branch of CGS and parameters, if there exist any Cons Law
         if (size(ConsLaws) != 0) {
-            ParPolConsLaws[i] = insert(ParPolConsLaws, (C[i][1], C[i][2], p, ConsLaws));
+            ParPolConsLaws[i] = insert(ParPolConsLaws, (C[i][1], C[i][2], ConsLaws));
             //print(ParPolConsLaws[i]);
-            num_nzcl = num_nzcl + 1;
-
-            int deg1 = 0;
-            int degn1 = 0;
-            for (int j=1; j<=size(ConsLaws); j++) {
-                if (deg(ConsLaws[j]) == 1) {
-                    deg1 = deg1 + 1;
-                }
-                else {
-                    degn1 = degn1 + 1;
-                }
-            }
+            num_branches_nzconslaw++;
 
             "Branch #", i, "has", size(ConsLaws), "non-zero conservation laws;", deg1, "linear,", degn1, "non-linear";
         }
     }
-    print("Number of branches with non-zero conservation laws ="), num_nzcl;
-    //print("Conservation Laws:");
-    //ConsLaws;
-    //return(ConsLaws);
-    ///return(ParPolConsLaws);  // removed to time procedure
+    print("Number of branches with non-zero conservation laws ="), num_branches_nzconslaw;
+
+    return (ParPolConsLaws);
 };
 
 
@@ -149,15 +124,17 @@ proc list_to_matrix(l) {
 };
 
 
-proc vector_to_poly(v) {
-    // convert vector to poly
-    poly p = 0;
-    for (int i = 1; i <= size(v); i++) {
-        p = p + poly(v[i]);
-    }
-    return (p);
-};
+proc test_polconslaw1() {
+    ring r = (0, k(1..3)), x(1..2), dp;
+    ideal J = k(1)*x(2), k(2)*x(1);
+    polconslaw(J, 2);
+}
 
+
+proc test_all() {
+    test_genpol_all();
+    test_specialise_ideal();
+}
 
 
 //***********End of polconslas library***************************

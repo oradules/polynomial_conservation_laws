@@ -1,0 +1,54 @@
+//////////////////////////////////////////////////////////////////////////////
+version=" June 2023 "; //
+info="
+LIBRARY:  conslawtester.lib
+
+AUTHORS; Christoph L\"uders, University of Kassel, Kassel, Germany
+Hamid Rahkooy, University of Oxford, UK.
+
+OVERVIEW:
+
+NOTATIONS:
+
+PROCEDURES:
+
+";
+
+
+// Checking correctness of computed cons laws via definition of cons laws
+
+//Input:
+//conslaw: a polynomial cons law
+//J: ideal of pols in rhs of ODE
+//v: list of variables
+
+proc conslawtester(poly conslaw, ideal J, list v) {
+    //if (ncols(J) != size(v)) {
+    //    J;
+    //    v;
+    //    ERROR("conslawtester: size must match");
+    //}
+    poly product = 0;
+    for (int j=1; j<=ncols(J); j++){
+        product = product + diff(conslaw, v[j]) * J[j];
+    }
+    //print("Testing if Cons Law kills Pols:"), product;
+    if (product != 0) {
+        print("*** Error: Not a conservation law:"), conslaw;
+        J;
+        v;
+        ERROR("Not a conservation law");
+    }
+}
+
+
+proc get_variables(ideal I) {
+    //"ideal"; I;
+    def vv = variables(I);
+    list v;
+    for (int i=1; i<=size(vv); i++) {
+        v[i] = vv[i];
+    }
+    //"v"; v;
+    return (v);
+}
