@@ -1,0 +1,9 @@
+LIB "polconslaw.lib";" ";
+
+" "; "BIOMODEL "; " ";
+
+" ";"==========================================";" ";
+//"> Polynomial Conservation Laws of ... pdivi";" ";
+
+bm_629();
+

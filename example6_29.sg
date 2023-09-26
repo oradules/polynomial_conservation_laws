@@ -1,0 +1,9 @@
+LIB "genpolconslaw.lib";" ";
+
+" "; "Example 6.29 "; " ";
+
+" ";"==========================================";" ";
+//"> Polynomial Conservation Laws of ... pdivi";" ";
+
+example6_29();
+
