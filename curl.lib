@@ -1,0 +1,181 @@
+//////////////////////////////////////////////////////////////////////////////
+version=" June 2023 "; //
+info="
+LIBRARY:  curl.lib
+
+AUTHORS; Christoph L\"uders, University of Kassel, Kassel, Germany
+Hamid Rahkooy, University of Oxford, UK.
+
+OVERVIEW:
+Compute the curl vector of a given vector of polynomials.
+
+NOTATIONS: Before calling any routine of the library,
+    the user  must define the ideal QQ[k(1..m)][x(1..n)], and all the
+    input polynomials and  ideals defined on it.
+
+PROCEDURES:
+
+";
+
+
+
+// p: vector of polynomials
+
+proc curl(vector p) {
+    poly d_i;
+    int i;
+    int j;
+    int m = 1;
+    vector d;
+    int numvars = size(ringlist(basering)[2]);
+
+    for (i=1; i<=numvars; i++) {
+        for (j=i+1; j<=numvars; j++) {
+            d_i = diff(p[i], var(j)) - diff(p[j], var(i));
+            d = d + d_i * gen(m);
+            m++;
+        }
+    }
+
+    return (d);
+};
+
+proc curl_test1() {
+    ring r=0, (x,y,z), dp;
+    vector p = [xy, xx, zy];
+    list v = x, y, z;
+    vector ret = curl(p);
+    if (ret == 0) {
+        ERROR("curl_test1: err");
+    }
+}
+
+proc curl_test2() {
+    ring r=0, (x,y,z), dp;
+    vector p = [zz, xx, yy];
+    list v = x, y, z;
+    vector ret = curl(p);
+    if (ret == 0) {
+        ERROR("curl_test2: err");
+    }
+}
+
+proc curl_test3() {
+    ring r=0, (x,y), dp;
+    vector p = [xxy, 1/3*xxx];
+    list v = x, y;
+    vector ret = curl(p);
+    if (ret != 0) {
+        ERROR("curl_test3: err");
+    }
+}
+
+proc curl_test4() {
+    ring r=0, (x,y,z), dp;
+    vector p = [xxy, 1/3*xxx, x];
+    list v = x, y, z;
+    vector ret = curl(p);
+    if (ret == 0) {
+        ERROR("curl_test4: err");
+    }
+}
+
+proc curl_test5() {
+    ring r=0, (x,y,z,u), dp;
+    vector p = [xxyu, 1/3*xxxu, z, 1/3*xxxy];
+    list v = x, y, z, u;
+    vector ret = curl(p);
+    if (ret != 0) {
+        ERROR("curl_test5: err");
+    }
+}
+
+proc curl_test6() {
+    ring r=(0, k(1)), x(1..3), dp;
+    vector p = [x(1),-x(2),0];
+    list v = x(1..3);
+    vector ret = curl(p);
+    if (ret != 0) {
+        ERROR("curl_test6: err");
+    }
+}
+
+//test6 vector written via gen representation
+proc curl_test7() {
+    ring r=(0, k(1)), x(1..3), dp;
+    vector p = [x(1),-x(2)];
+    list v = x(1..3);
+    vector ret = curl(p);
+    if (ret != 0) {
+        ERROR("curl_test7: err");
+    }
+}
+
+//When size(p)<size(v) and no zero is added to p
+proc curl_test8() {
+    ring r=(0, k(1)), x(1..3), dp;
+    vector p = [x(1),-x(2)];
+    list v = x(1..3);
+    vector ret = curl(p);
+    if (ret != 0) {
+        ERROR("curl_test8: err");
+    }
+}
+
+//When size(p)<size(v) and no zero is added to p
+proc curl_test9() {
+    ring r=(0, k(1)), x(1..5), dp;
+    vector p = [x(2),-x(1)];
+    list v = x(1..5);
+    vector ret = curl(p);
+    if (ret == 0) {
+        ERROR("curl_test9: err");
+    }
+}
+
+//When size(p)<size(v) and no zero is added to p
+proc curl_test10() {
+    ring r=(0, k(1)), x(1..5), dp;
+    vector p = [x(3),0,-x(1)];
+    list v = x(1..5);
+    vector ret = curl(p);
+    if (ret == 0) {
+        ERROR("curl_test10: err");
+    }
+}
+
+//When size(p)<size(v) and no zero is added to p
+proc curl_test11() {
+    ring r=(0, k(1)), x(1..5), dp;
+    vector p = [x(2),0,-x(1)];
+    list v = x(1..5);
+    vector ret = curl(p);
+    if (ret == 0) {
+        ERROR("curl_test11: err");
+    }
+}
+
+proc curl_test12() {
+    ring r = (0, k(1..2)), x(1..3), dp;
+    vector p = [x(1),-x(2),0];
+    list v = x(1..3);
+    vector ret = curl(p);
+    if (ret != 0) {
+        ERROR("curl_test12: err");
+    }
+}
+
+proc test_curl() {
+    curl_test1();
+    curl_test2();
+    curl_test3();
+    curl_test4();
+    curl_test5();
+    curl_test6();
+    curl_test7();
+    curl_test8();
+    curl_test9();
+    curl_test10();
+    curl_test11();
+    curl_test12();
+}

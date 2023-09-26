@@ -1,0 +1,9 @@
+LIB "polconslaw.lib";" ";
+
+" "; "Example 6.30 "; " ";
+
+" ";"==========================================";" ";
+//"> Polynomial Conservation Laws";" ";
+
+example6_30();
+

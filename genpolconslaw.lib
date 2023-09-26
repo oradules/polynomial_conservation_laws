@@ -1,161 +1,400 @@
 //////////////////////////////////////////////////////////////////////////////
-version=" December 2022 "; //
+version=" June 2023 "; //
 info="
 LIBRARY:  genpolconslaw.lib
 
 AUTHORS; Christoph L\"uders, University of Kassel, Kassel, Germany
-Hamid Rahkooy, MPI Informatics, Saarbruecken, Germany
+Hamid Rahkooy, University of Oxford, UK.
 
 OVERVIEW:
-
-Computes conservation laws ONLY in the generic branch of CGS, by working on R(k(1..r))[x(1..n)].
+Computes polynomial conservation laws ONLY in the generic branch of CGS, by working on R(k(1..r))[x(1..n)].
 
 NOTATIONS: Before calling any routine of the library,
-          the user  must define the ideal QQ[k(1..m)][x(1..n)], and all the
-          input polynomials and  ideals defined on it.
+    the user  must define the ideal QQ[k(1..m)][x(1..n)], and all the
+    input polynomials and  ideals defined on it.
 
 PROCEDURES:
 
 ";
-//LIB "polylib.lib";
-LIB "curlnz.lib";
+
+LIB "curl.lib";
+LIB "syzygy_basis.lib";
+LIB "integration.lib";
 
 
-// ************ Begin of the polconslaw library *********************
+
+// ************ Beginning of the genpolconslaw library *********************
 
 // Algorithm ParametricPolynomialConservationLawsViaSyzygies
 // Input:
-   //r : ring with parameters and variables
-   //J: steady state ideal in ring r
+   // J: steady state ideal in the basering with parameters and variables
+   // deg_bound: degree bound on output conservation laws
 // ring and variables should be defined before running the library
 //Ex. ring r=(0,k(1..5)),(x(1..5)),dp;
 // poly f=3*k(1)*x(1);
 // poly g=k(1)*x(1)+x(2);
 // ideal J=f,g;
 
-proc genpolconslaw(r, J) {
+proc genpolconslaw(ideal J, int deg_bound) {
     option (noredefine);
 
-    //print("");
-    //print("Steady State Ideal:");
-    //J;
+    "Degree bound set to", deg_bound+1;
+    print("Steady State Ideal:"); J;
 
-    // build list of ring parameters and positivity condition
-    list p;
-    //p = ringlist(r)[1][2];
-    int numpar = size(ringlist(r)[1][2]);
-    for (int i=1; i<=numpar; i++) {
-    	p = insert(p,par(i));
-	}
-    //p = k(1..numpar);
-    //print("parameters list"), p;
-    
     // build list of ring variables
     list v;
-    int numvar = size(ringlist(r)[2]);
+    int numvar = size(ringlist(basering)[2]);
     for (int i=1; i<=numvar; i++) {
-    	v[i] = var(i);
-	}
-    //print("variable list"), v;
-
-    //list ConsLaws;
-    list ConsLaws;
-    int s;
-    int s1;
-       
-    module S = syz(J);
-    print("Syzigies"),S;
-    s = s + size(S);
-
-    int deg1 = 0;
-    int degn1 = 0;
-
-    for (int j=1; j<=size(S); j++) {
-	    // only if curl is zero
-        list g = S[j];
-        for (int k = 1; k <= size(g); k++) {
-            g[k] = vector_to_poly(g[k]);
-        }
-        int curl = curlnz(g, v);
-        //int curl = curlnz(S[j], v);
-        print("curl="), curl;
-        if (curl == 0) {
-	        poly Phi =0;
-	        for (int k=1; k<=nrows(S[j]); k++) {
-                // make x(k+1)=0, x(k+2)=0, ...
-    	        poly gk = S[j][k];
-	            //print("S[j][k]: k-th pol of j-th syzygy:"),gk;
-	            //poly Phi = 0;
-                for (int l=k+1; l<=nrows(S[j]); l++) {
-	       	        //Compute g[k](x_k+1=x_k+2...=0)
-	       	        //print("var(l):"), var(l);
-		            //print("gk/var(l)"),gk/var(l);
-		            gk = gk - (gk/var(l)) * var(l);
-                }
-		        //print("gk(x_k+1=x_k+2...=0) before integration:"), gk;
-	            // Integration
-	            //print("gk before integration"), gk;
-                // go through all monomials by gk[l]
-                for (int t=1; t<=size(gk); t++) {
-              	    // integrate t-th monomial
-		            //print("Phi before additoin of integration "), Phi;
-                    Phi = Phi + gk[t] * x(k) / (leadexp(gk[t])[k] + 1);
-		            // print("gk after each integration = Phi"), Phi;
-                }
-            }
-
-            // save for later creation of list of Cons Laws
-	        if (Phi != 0) {
-	            for (int m=1; m<=size(ConsLaws); m++) {
-                    if (ConsLaws[m] == Phi) {
-                        break;
-                    }
-                }
-                if (m > size(ConsLaws)) {
-                    ConsLaws = insert(ConsLaws, Phi);
-                    print("cons laws"), ConsLaws;
-                    s1 = s1 + 1;
-                    
-                    if (deg(Phi) == 1) {
-                        deg1 = deg1 + 1;
-                    }
-                    else {
-                        degn1 = degn1 + 1;
-                    }
-                }
-            }
-        }
+        v[i] = var(i);
     }
+    // print("variable list"), v;
 
-    print("Syzygy Module Size ="), s;
-    print("Number of Conservation Laws in Generic Branch ="), s1;
+    module S = syz(J);
+    print("Syzygies:"); S;
+
+    // Computing a generating set for the Q-vector space of Syzygies as in Remark 6.9
+    list GenS = multiply_by_monomials(S, v, deg_bound);
+    // print("Gen Set for Syz VS"), GenS[1];
+    // print("Syz module basis multiplications as a module data type"), GenS[2];
+
+    // Computing a basis for the Q-vector space of Syzygies as in Remark 6.9
+    list basis_syz = basis_syzygy(GenS[1]);
+    // print("Basis for Syz VS via leadmon"), basis_syz;
+    // Computing a basis for the VS of syz via Bareiss:
+    list basis_syz_bareiss = bareiss(GenS[2]);
+    // "Basis computed via Barreis:"; basis_syz_bareiss;
+
+
+    // Computing curl of the elements of basis_syz is not enough because linear combination of curl non-zero elments may be zero. So one must check the linear combination of curl non-zero elements as well. This corresponds to computing kernel of curl as a linear map (see Prop. 6.22). This is done via ansatz:
+    list lincomb = find_linear_combinations(basis_syz, v);
+
+    list curl_zero_syz = lincomb[1] + lincomb[2];
+
+    list ret = compute_conslaw_nzcurl(J, curl_zero_syz, v);
+    list ConsLaws = ret[1];
+    int deg1 = ret[2];
+    int degn1 = ret[3];
+    int s1 = deg1 + degn1;
+
+    print("Syzygy module size ="), size(S);
+    print("Size of a generating set of Q-vector space of syzygies ="), size(GenS[1]);
+    print("Size of a basis set of Q-vector space of syzygies ="), size(basis_syz);
+    print("Number of zero curl syzygies in the basis ="), size(lincomb[2]);
+    print("Number of zero curl linear combination of syzygies ="), size(lincomb[1]);
+    print("Number of conservation laws in generic branch ="), s1;
     print("Number of linear conservation laws ="), deg1;
     print("Number of non-linear conservation laws ="), degn1;
-    print("Conservation Laws in Generic Branch:");
-    //ConsLaws;
-    //return(ConsLaws);
+    print("Conservation laws in generic branch:");
+
+    return (ConsLaws);
 };
 
 
-proc list_to_matrix(l) {
-    // convert list to matrix
-    matrix m[1][size(l)];
-    for (int j=1; j<=size(l); j++) {
-        m[1,j] = l[j];
+proc test_genpolconslaw1() {
+    ring r=0, x(1..3), dp;
+    ideal J = x(2),x(1),x(1)*x(2);
+    list laws = genpolconslaw(J, 2);
+    if (size(laws) != 2) {
+        ERROR("test_genpolconslaw1: err 1");
     }
-    return (m);
-};
-
-
-proc vector_to_poly(v) {
-    // convert vector to poly
-    poly p = 0;
-    for (int i = 1; i <= nrows(v); i++) {
-        p = p + poly(v[i]);
+    if (laws[1] != 1/2*x(1)^2-1/2*x(2)^2) {
+        ERROR("test_genpolconslaw1: err 2");
     }
-    return (p);
-};
+    if (laws[2] != 1/2*x(2)^2-x(3)) {
+        ERROR("test_genpolconslaw1: err 3");
+    }
+}
+
+proc test_genpolconslaw2() {
+    ring r=(0, k(1..2)), x(1..3), dp;
+    ideal J = -k(1)*x(1), -k(2)*x(2), (k(1)+k(2))*x(1)*x(2);
+    list laws = genpolconslaw(J, 2);
+    if (size(laws) != 1) {
+        ERROR("test_genpolconslaw2: err 1");
+    }
+    if (laws[1] != x(1)*x(2)+x(3)) {
+        ERROR("test_genpolconslaw2: err 2");
+    }
+}
+
+proc test_genpolconslaw() {
+    test_genpolconslaw1();
+    test_genpolconslaw2();
+}
 
 
+proc find_linear_combinations(list basis_syz, list v) {
+    //1-Form the system:
+    //Sys=C[1]*curl(basis_syz[1]) + ... + C[M]*curl(basis_syz[M])
+    //2-SOLVE Sys FOR C1,...Cm.:
+    //3-Form the linear combination C[1]*basis_nz_curl[1] + ... + C[t]*basis_nz_curl[t]
 
-//***********End of polconslas library***************************
+    int i;
+    int j;
+
+    // compute curls and save the non-zero ones
+    list nz_curls;
+    list basis_nz_curl;
+    list basis_zero_curl;
+    vector c;
+    for (i=1; i<=size(basis_syz); i++) {
+        c = curl(basis_syz[i]);
+        if (c != 0) {
+            nz_curls = insert(nz_curls, c, size(nz_curls));
+            basis_nz_curl = insert(basis_nz_curl, basis_syz[i], size(basis_nz_curl));
+        }
+        else {
+            basis_zero_curl = insert(basis_zero_curl, basis_syz[i], size(basis_zero_curl));
+        }
+    }
+
+    // if all curls are zero, have an early exit
+    int numcs = size(basis_nz_curl);
+    //"number of non-zero curls:", numcs;
+    if (numcs == 0) {
+        // "all curls are zero";
+        list ret = (list(), basis_syz);
+        return (ret);
+    }
+
+    // add c(i) as variables to the ring
+    ring save_ring = basering;
+    def rl = ringlist(basering);
+
+    for (i=1; i<=numcs; i++) {
+        rl[2][size(rl[2])+1] = "c(" + string(i) + ")";
+    }
+    def @r = ring(rl);
+    int numvars = size(v);
+    setring @r;
+
+    // access data from old ring
+    def save_basis_nz_curl = imap(save_ring, basis_nz_curl);
+    def save_nz_curls = imap(save_ring, nz_curls);
+
+    // linear combination of curls of syzygy basis elements
+    vector sm;
+    for (i=1; i<=size(save_basis_nz_curl); i++) {
+        //save_basis_nz_curl[i];
+        //"curl:", save_nz_curls[i];
+        sm = sm + c(i)*save_nz_curls[i];
+    }
+    //"Linear combination of non-zero curls with indeterminate coeffs:", sm;
+
+    //OPTION 2 FOR SOLVING:
+    //LIB "presolve.lib";
+    //B is the matrix including equations in c(i)
+    //solvelinearpart(ideal(B));
+    //We have to change this output...
+
+    // build product of all monomials
+    poly prod = 1;
+    for (i=1; i<=numvars; i++) {
+        prod = prod * x(i);
+    }
+
+    list eqns;
+    matrix cfs;
+    poly entry;
+    for (i=1; i<=nrows(sm); i++) {
+        entry = sm[i];
+        // "entry=", entry;
+        cfs = coef(entry, prod);
+        for (j=1; j<=ncols(cfs); j++) {
+            eqns = insert(eqns, cfs[2,j], size(eqns));
+            //"eqn=", cfs[2,j];
+        }
+    }
+
+    // build a matrix m with coeffs in c as columns
+    matrix coeff_matrix[size(eqns)][numcs];
+    for (i=1; i<=size(eqns); i++) {
+        for (j=1; j<=numcs; j++) {
+            cfs = coef(eqns[i], c(j));
+            if (cfs[1,1] == c(j)) {
+                coeff_matrix[i,j] = cfs[2,1];
+            }
+        }
+    }
+
+    //coeff_matrix;
+    def solv = mysolve(coeff_matrix);
+    if (solv[1] == 0) {
+        // early exit
+        setring save_ring;
+        list ret = (list(), basis_zero_curl);
+        return (ret);
+    }
+
+    // there were solution(s)
+    def kernel_matrix = solv[2];
+    //kernel_matrix;
+
+    list linear_combi_list;
+    for (i=1; i<=ncols(kernel_matrix); i++) {
+        sm = 0;
+        for (j=1; j<=nrows(kernel_matrix); j++) {
+            sm = sm + kernel_matrix[j,i]*save_basis_nz_curl[j];
+        }
+
+        // divide out gcd
+        sm = sm / content(sm);
+
+        "linear combination of non-zero curls:", sm;
+        linear_combi_list = insert(linear_combi_list, sm, size(linear_combi_list));
+    }
+
+    setring save_ring;
+    def old_linear_combi_list = imap(@r, linear_combi_list);
+    list ret = (old_linear_combi_list, basis_zero_curl);
+    return (ret);
+}
+
+//IDEA 2 for finding linear combof non-zero curls(don't know how to do it):
+//1-conver basis_nz_curl into matrix B = basis_nz_curl;
+//2-Compute the matrix of the curls:
+//3- Compute Kernel of curls: matrix K = Ker(M);
+//Multiply kernels by the basis_nz_curl to obtain the linear combinations:
+//matrix  L= B*K;
+
+// NOT IMPLEMENTED, just as comment for future use:
+//Method 2. (Don't know how to do yet!)
+// 1- Create a matrix A with the vectors curl(basis_syz[i]) as rows
+// 2- Create a column vector C of zeros of the same size
+// 3-Solve the system of linear equations Ax = C
+// 4-Extract the linear combination from the solution
+
+
+proc mysolve(matrix m) {
+    // compute kernel of matrix m
+    // returns matrix of solutions in columns that are linear independant
+    // "Matrix of coeffs m=", m;
+
+    matrix b[nrows(m)][1];
+    list L = ludecomp(m);
+    //"LU decomposition:", L;
+    list Q = lusolve(L[1], L[2], L[3], b);
+    if (nrows(Q[3]) == 1 && ncols(Q[3]) == 1 && Q[3][1,1] == 0) {
+        list ret = 0, Q[3];
+        return (ret);
+    }
+    // Q[1]=0 if no solution; =1 if there is solution
+    // Q[2]  gives one solution
+    // "Q[2]: A solution=", Q[2];
+    //Q[3] gives a matrix whose columns are the solutions
+    // "matrix with columns as solutions c=", Q[3];
+
+    list ret = 1, Q[3];
+    return (ret);
+}
+
+
+proc test_mysolve1() {
+    ring r=0, x(1..3), dp;
+    matrix m[2][2]=1,1,-1,-1;
+    matrix m2[2][1]=1,-1;
+    list ret = mysolve(m);
+    if (ret[1] != 1 || ret[2] != m2) {
+        ERROR("test_mysolve1: err");
+    }
+}
+
+proc test_mysolve2() {
+    ring r=0, x(1..3), dp;
+    matrix m[2][3]=1,1,2,-1,-1,-2;
+    matrix m2[3][2]=2,1,0,-1,-1,0;
+    list ret = mysolve(m);
+    if (ret[1] != 1 || ret[2] != m2) {
+        ERROR("test_mysolve2: err");
+    }
+}
+
+proc test_mysolve3() {
+    // no solution
+    ring r=0, x(1..3), dp;
+    matrix m[2][2]=1,0,0,1;
+    list ret = mysolve(m);
+    if (ret[1] != 0) {
+        ERROR("test_mysolve3: err");
+    }
+}
+
+proc test_mysolve() {
+    test_mysolve1();
+    test_mysolve2();
+    test_mysolve3();
+}
+
+
+proc test_find_linear_combinations1() {
+    ring r=0, x(1..3), dp;
+    list b;
+    b[1] = [0,x(2),-1];
+    b[2] = [x(1),-x(2),1];
+    list v = x(1..3);
+    def ret = find_linear_combinations(b, v);
+    if (size(ret[1]) != 0) {
+        ERROR("test_find_linear_combinations1: err");
+    }
+}
+
+proc test_find_linear_combinations2() {
+    ring r=(0, k(1..2)), x(1..3), dp;
+    list b;
+
+    // ideal J = -k(1)*x(1),-k(2)*x(2),(k(1)+k(2))*x(1)*x(2);
+    // syz(J);
+    b[1] = [(k(1)+k(2))*x(2), 0, k(1)];
+    b[2] = [-k(2)*x(2), k(1)*x(1), 0];
+    print("b[1]"),b[1];
+    print("b[2]"),b[2];
+    list v = x(1..3);
+    def ret = find_linear_combinations(b, v);
+
+    // Must get: curl of b[1] !=0, curl Of b[2]=0
+    vector w = [x(2), x(1), 1];
+    if (size(ret[1]) != 1 || ret[1][1] != w && ret[1][1] != -w) {
+        ERROR("test_find_linear_combinations2: err 1");
+    }
+    if (size(ret[2]) != 0) {
+        ERROR("test_find_linear_combinations2: err 2");
+    }
+}
+
+proc test_find_linear_combinations3() {
+    ring r=(0, k(1..2)), x(1..3), dp;
+    list b;
+
+    // ideal J = -k(1)*x(1),-k(2)*x(2),(k(1)+k(2))*x(1)*x(2),x(3);
+    // syz(J);
+    b[1] = [(k(1)+k(2))*x(2), 0, k(1), 0];
+    b[2] = [0, x(3), 0, k(2)*x(2)];
+    b[3] = [-k(2)*x(2), k(1)*x(1), 0, 0];
+    b[4] = [x(3), 0, 0, k(1)*x(1)];
+    list v = x(1..3);
+    def ret = find_linear_combinations(b, v);
+
+    vector w = [x(2), x(1), 1];
+    if (size(ret[1]) != 1 || ret[1][1] != w && ret[1][1] != -w) {
+        ERROR("test_find_linear_combinations3: err 1");
+    }
+    if (size(ret[2]) != 0) {
+        ERROR("test_find_linear_combinations3: err 1");
+    }
+}
+
+proc test_find_linear_combinations() {
+    test_find_linear_combinations1();
+    test_find_linear_combinations2();
+    test_find_linear_combinations3();
+}
+
+
+proc test_genpol_all() {
+    test_mysolve();
+    test_curl();
+    test_find_linear_combinations();
+    test_genpolconslaw();
+}
+
+//***********End of genpolconslaw library***************************

@@ -1,0 +1,100 @@
+//////////////////////////////////////////////////////////////////////////////
+version=" June 2023 "; //
+info="
+LIBRARY:  integration.lib
+
+AUTHORS; Christoph L\"uders, University of Kassel, Kassel, Germany
+Hamid Rahkooy, University of Oxford, UK.
+
+OVERVIEW:
+
+NOTATIONS:
+
+PROCEDURES:
+
+";
+
+LIB "conslawtester.lib";
+
+
+proc compute_conslaw_nzcurl(ideal J, list curl_zero_syz, list v) {
+    list ConsLaws;
+    int deg1 = 0;
+    int degn1 = 0;
+    int i;
+    int j;
+    poly gj;
+    poly phi;
+
+    for (i=1; i<=size(curl_zero_syz); i++) {
+        //type(curl_zero_syz[i]);
+
+        phi = 0;
+        for (j=1; j<=size(v); j++) {
+            gj = kill_variables(curl_zero_syz[i], j);
+            phi = phi + integrate_syz(gj, j);
+        }
+        //print("phi="), phi;
+
+        // save for later creation of list of Cons Laws
+        if (phi == 0) {
+            ERROR("phi must not be zero!");
+        }
+
+        for (j=1; j<=size(ConsLaws); j++) {
+            if (ConsLaws[j] == phi) {
+                break;
+            }
+        }
+        if (j > size(ConsLaws)) {
+            ConsLaws = insert(ConsLaws, phi);
+            "conslaw:", phi;
+
+            // Test correctness of computed Cons Laws:
+            conslawtester(phi, J, v);
+
+            if (deg(phi) < 1) {
+                ERROR("degree must not be zero");
+            }
+            if (deg(phi) == 1) {
+                deg1++;
+            }
+            else {
+                degn1++;
+            }
+        }
+    }
+
+    list ret = (ConsLaws, deg1, degn1);
+    return (ret);
+}
+
+
+proc kill_variables(vector g, int k) {
+    // make x(k+1)=0, x(k+2)=0, ...
+    poly gk = g[k];
+    // print("g[k]: k-th pol of j-th syzygy:"),gk;
+    for (int l=k+1; l<=nrows(g); l++) {
+        //Compute g[k](x_k+1=x_k+2...=0)
+        gk = gk - (gk/var(l)) * var(l);
+    }
+    //print("gk(x_k+1=x_k+2...=0) before integration:"), gk;
+
+    return (gk);
+}
+
+
+proc integrate_syz(poly gk, int k) {
+    poly phi = 0;
+
+    //print("gk before integration"), gk;
+    // go through all monomials by gk[l]
+    for (int l=1; l<=size(gk); l++) {
+        // integrate l-th monomial
+        //print("phi before addition of integration "), phi;
+        phi = phi + gk[l] * x(k) / (leadexp(gk[l])[k] + 1);
+        // print("gk after each integration = phi"), phi;
+    }
+
+    return (phi);
+}

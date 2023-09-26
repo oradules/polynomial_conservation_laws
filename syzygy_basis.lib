@@ -1,0 +1,107 @@
+//////////////////////////////////////////////////////////////////////////////
+version=" June 2023 "; //
+info="
+LIBRARY:  syzygy_basis.lib
+
+AUTHORS; Christoph L\"uders, University of Kassel, Kassel, Germany
+Hamid Rahkooy, University of Oxford, UK.
+
+OVERVIEW:
+
+NOTATIONS:
+
+PROCEDURES:
+
+";
+
+LIB "general.lib";
+
+proc generate_monomials_degree(list monomials, list variable_list, int current_degree, poly current_combination) {
+    if (current_degree == 0) {
+        monomials = insert(monomials, current_combination);
+    }
+    else {
+        for (int i=1; i<=size(variable_list); i++) {
+            monomials = generate_monomials_degree(monomials, variable_list, current_degree - 1, current_combination * variable_list[i]);
+        }
+    }
+    return (monomials);
+}
+
+proc unique(list l) {
+    list out;
+
+    l = sort(l)[1];
+    for (int i=1; i<=size(l); i++) {
+        if (i == 1) {
+            out = insert(out, l[1]);
+        }
+        else {
+            if (l[i] <> l[i-1]) {
+                out = insert(out, l[i]);
+            }
+        }
+    }
+
+    return (out);
+}
+
+proc generate_monomials(list variable_list, int degree_bound) {
+    list monomials;
+
+    "Generating monomials, n=", size(variable_list), ", d=", degree_bound;
+    def t = timer;
+    for (int d=0; d<=degree_bound; d++) {
+        monomials = generate_monomials_degree(monomials, variable_list, d, 1);
+    }
+
+    def ret = unique(monomials);
+    t = timer - t;
+    "Done,", t, "ticks";
+    return (ret);
+}
+
+proc multiply_by_monomials(module S, list variable_list, int deg_bound) {
+    // input: list of vectors
+    // output: list of vectors
+    list GenSyz;
+    module GenSyzMod;
+
+    for (int i=1; i<=size(S); i++) {
+        vector S_i = S[i];
+        int max_deg = deg(S_i);
+
+        // if max total degree of S_i exceeds deg_bound, drop it from output
+        if (max_deg <= deg_bound) {
+            int dif = deg_bound - max_deg;
+
+            list monomials = generate_monomials(variable_list, dif);
+            for (int j=1; j<=size(monomials); j++) {
+                GenSyz = insert(GenSyz, S_i * monomials[j]);
+		GenSyzMod = GenSyzMod, monomials[j]* S_i;
+            }
+        }
+    }
+
+    return (GenSyz,GenSyzMod);
+}
+
+
+LIB "sets.lib";
+
+proc basis_syzygy(list S) {
+    Set lm_set;
+    list basis_syz;
+
+    for (int i=1; i<=size(S); i++) {
+        vector lead_mon = leadmonom(S[i]);
+	// print("lead mons of syzygy i"); S[i]; lead_mon;
+        if (isElement(lead_mon, lm_set) == 0) {
+            lm_set = addElement(lm_set, lead_mon);
+            basis_syz = insert(basis_syz, S[i]);
+        }
+    }
+    //print("lead Mons"); lm_set;
+
+    return (basis_syz);
+}

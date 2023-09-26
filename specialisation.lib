@@ -1,0 +1,113 @@
+proc specialise_ideal(ideal J, ideal L) {
+    poly p;
+    list F;
+    int i;
+    int j;
+    //J;
+    for (i=1; i<=size(J); i++) {
+        p = J[i];
+        //print("ideal member"); type(p);
+        for (j=1; j<=size(L); j++) {
+            //type(p);
+            //type(L[j]);
+            if (is_para(L[j])) {
+                p = subst(p, L[j], 0);         //setting p(k(j)=0), if k(j) is in the semi-algebraic set.
+                //print("killing a parameter form pol"), p;
+            }
+            //p;
+        }
+        F = insert(F, p, size(F));
+    }
+    return (F);
+}
+
+
+proc is_para(poly p) {
+    int numpar = size(ringlist(basering)[1][2]);
+    for (int i=1; i<=numpar; i++) {
+        if (p == par(i)) {
+            return (1);
+        }
+    }
+    return (0);
+}
+
+proc test_is_para() {
+    ring r = (0, k(1..3)), x(1..3), dp;
+    poly p = x(1);
+    def ret = is_para(p);
+    if (ret != 0) {
+        ERROR("test_is_para: err 1");
+    }
+
+    p = k(1);
+    ret = is_para(p);
+    if (ret != 1) {
+        ERROR("test_is_para: err 2");
+    }
+
+    p = k(1)*k(2);
+    ret = is_para(p);
+    if (ret != 0) {
+        ERROR("test_is_para: err 3");
+    }
+
+    p = k(1)+k(2);
+    ret = is_para(p);
+    if (ret != 0) {
+        ERROR("test_is_para: err 4");
+    }
+
+    p = k(1)*x(2);
+    ret = is_para(p);
+    if (ret != 0) {
+        ERROR("test_is_para: err 5");
+    }
+}
+
+
+proc test_specialise_ideal1() {
+    ring r = (0, k(1..3)), x(1..3), dp;
+    ideal J = k(1)*x(2), k(2)*x(1);
+    ideal L = k(2);
+    list K = specialise_ideal(J, L);
+    if (K[1] != k(1)*x(2)) {
+        ERROR("test_specialise_ideal1: err 1");
+    }
+    if (K[2] != 0) {
+        ERROR("test_specialise_ideal1: err 2");
+    }
+}
+
+proc test_specialise_ideal2() {
+    ring r = (0, k(1..3)), x(1..3), dp;
+    ideal J = k(1)*x(2), k(2)*x(1);
+    ideal L = k(1);
+    list K = specialise_ideal(J, L);
+    if (K[1] != 0) {
+        ERROR("test_specialise_ideal2: err 1");
+    }
+    if (K[2] != k(2)*x(1)) {
+        ERROR("test_specialise_ideal2: err 2");
+    }
+}
+
+proc test_specialise_ideal3() {
+    ring r = (0, k(1..3)), x(1..3), dp;
+    ideal J = k(1)*x(2), k(2)*x(1);
+    ideal L = k(1)+k(2);
+    list K = specialise_ideal(J, L);
+    if (K[1] != k(1)*x(2)) {
+        ERROR("test_specialise_ideal3: err 1");
+    }
+    if (K[2] != k(2)*x(1)) {
+        ERROR("test_specialise_ideal3: err 2");
+    }
+}
+
+proc test_specialise_ideal() {
+    test_is_para();
+    test_specialise_ideal1();
+    test_specialise_ideal2();
+    test_specialise_ideal3();
+}
