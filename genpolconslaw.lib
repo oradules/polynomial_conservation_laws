@@ -59,7 +59,7 @@ proc genpolconslaw(ideal J, int deg_bound) {
 
     // Computing a basis for the Q-vector space of Syzygies as in Remark 6.9
     list basis_syz = basis_syzygy(GenS[1]);
-    // print("Basis for Syz VS via leadmon"), basis_syz;
+     print("Basis for Syz VS via leadmon"), basis_syz;
     // Computing a basis for the VS of syz via Bareiss:
     list basis_syz_bareiss = bareiss(GenS[2]);
     // "Basis computed via Barreis:"; basis_syz_bareiss;
@@ -395,6 +395,12 @@ proc test_genpol_all() {
     test_curl();
     test_find_linear_combinations();
     test_genpolconslaw();
+}
+
+proc example6_29() {
+    ring r=(0,k(1)),(x(1..3)),(dp,C);
+    ideal j=x(2),x(1),x(1)*x(2);
+    genpolconslaw(j,4);
 }
 
 //***********End of genpolconslaw library***************************

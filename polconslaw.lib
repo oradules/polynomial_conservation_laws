@@ -136,5 +136,20 @@ proc test_all() {
     test_specialise_ideal();
 }
 
+proc example6_30() {
+    ring r=(0,k(1..2)), x(1..3), (lp,C);
+    ideal J2=-k(1)*x(1),-k(2)*x(2),(k(1)+k(2))*x(1)*x(2);
+    polconslaw(J2,3);
+}
 
+proc bm_629() {
+    ring r = (0, k(1),k(2),k(3),k(4),k(5)), (x(1),x(2),x(3),x(4),x(5)), (dp,c);
+    ideal I =
+((k(3)*x(2)) + (-1*k(2)*x(1)*x(3))),
+((k(5)*x(5)) + (-1*k(3)*x(2)) + (k(2)*x(1)*x(3)) + (-1*k(4)*x(2)*x(4))),
+((k(3)*x(2)) + (-1*k(2)*x(1)*x(3))),
+((k(5)*x(5)) + (-1*k(4)*x(2)*x(4))),
+((-1*k(5)*x(5)) + (k(4)*x(2)*x(4)));
+    def ret = polconslaw(I, 3);
+};
 //***********End of polconslas library***************************
