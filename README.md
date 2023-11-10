@@ -9,3 +9,6 @@ Contains the following Singular (computer algebra system for polynomial computat
     genpolconslaw.lib: A library for computing polynomial conservation laws in the generic branch
     
     curl.lib: An auxiliary library for testing if a syzygy is irrotational.
+
+A few examples are present a step by step implementation of the algorithms: 
+example6_29.sg, example6_30.sg and bm629.sg to be run using Singular
